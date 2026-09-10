@@ -40,7 +40,6 @@
             gap: 15px;
         }
 
-        /* Enlace de seguridad en el título */
         .header h1 a { 
             font-size: 1.8rem; 
             font-weight: 600; 
@@ -56,7 +55,6 @@
             gap: 15px;
         }
 
-        /* Medidor de Balance */
         .balance-badge {
             background-color: var(--card-bg);
             border: 1px solid var(--border-color);
@@ -87,7 +85,6 @@
             gap: 20px;
         }
 
-        /* Estilo de las Tarjetas */
         .card {
             background-color: var(--card-bg);
             border: 1px solid var(--border-color);
@@ -108,6 +105,7 @@
             justify-content: space-between;
             font-size: 0.85rem;
             color: var(--text-muted);
+            font-weight: 600;
         }
 
         .card-body textarea {
@@ -125,7 +123,6 @@
         }
         .card-body textarea:focus { border-color: var(--accent-blue); }
 
-        /* Botones de acción */
         .actions {
             display: flex;
             gap: 8px;
@@ -151,7 +148,6 @@
         .btn-save { background-color: var(--accent-green); }
         .btn-delete { background-color: var(--accent-red); }
 
-        /* Notificaciones flotantes */
         #toast {
             position: fixed;
             bottom: 30px;
@@ -171,7 +167,6 @@
             opacity: 1;
         }
 
-        /* Estado de carga */
         #loader {
             text-align: center;
             color: var(--text-muted);
@@ -179,30 +174,93 @@
             margin-top: 50px;
             grid-column: 1 / -1;
         }
+
+        /* --- NUEVO: MODAL DE ELIMINACIÓN PERSONALIZADO --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.75);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+            backdrop-filter: blur(3px);
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 25px;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+            transform: translateY(-20px);
+            transition: transform 0.2s;
+        }
+        .modal-overlay.active .modal-content {
+            transform: translateY(0);
+        }
+        .modal-content h3 {
+            color: var(--accent-red);
+            margin-bottom: 10px;
+            font-size: 1.3rem;
+        }
+        .modal-content p {
+            color: var(--text-muted);
+            margin-bottom: 25px;
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 15px;
+        }
+        .btn-cancel {
+            background-color: var(--border-color);
+            color: var(--text-main);
+        }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <!-- Título con enlace de seguridad -->
         <h1><a href="https://industriastech.github.io/Lumina-Scribe-Pro/">🎙️ Lumina Scribe</a></h1>
         
         <div class="header-controls">
-            <!-- Medidor de Balance en tiempo real -->
             <div class="balance-badge" id="balance-display">💰 Saldo: Consultando...</div>
             <button class="btn-refresh" onclick="cargarDatos()">🔄 Actualizar Panel</button>
         </div>
     </div>
 
     <div class="container" id="tarjetas-container">
-        <!-- Las tarjetas se inyectarán aquí mediante JavaScript -->
+        <!-- Tarjetas dinámicas -->
     </div>
 
     <div id="toast">Notificación</div>
 
+    <!-- ESTRUCTURA DEL MODAL PERSONALIZADO -->
+    <div class="modal-overlay" id="modal-confirmacion">
+        <div class="modal-content">
+            <h3>⚠️ Destruir Registro</h3>
+            <p>¿Estás seguro de que deseas destruir esta transcripción? Esta acción eliminará los datos de la base permanentemente.</p>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="cerrarModal()">Cancelar</button>
+                <button class="btn btn-delete" id="btn-confirmar-eliminar">Destruir</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // La NUEVA URL de tu Google Apps Script
         const API_URL = 'https://script.google.com/macros/s/AKfycbxSXK_qPndPiHsPlImbLSizBdFBC2JrnfnuvG4G-Mfe2oMKnlx8H_4M9IsY1sBAy0S4/exec';
+        let idAEliminar = null; // Guarda el ID temporalmente para el modal
 
         document.addEventListener('DOMContentLoaded', cargarDatos);
 
@@ -217,10 +275,7 @@
                 const respuesta = await fetch(API_URL);
                 const datosServidor = await respuesta.json();
                 
-                // Actualizar el saldo exacto devuelto por Deepgram
                 balanceDisplay.innerText = `💰 Saldo: $${datosServidor.saldo} USD`;
-                
-                // Renderizar los textos
                 renderizarTarjetas(datosServidor.transcripciones);
             } catch (error) {
                 console.error(error);
@@ -241,13 +296,14 @@
 
             datos.forEach((registro, index) => {
                 const fecha = new Date(registro.fecha).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+                // Cálculo para que el registro más viejo sea el #1 y el más nuevo el número más alto
+                const numeroVisual = datos.length - index; 
                 
                 const card = document.createElement('div');
                 card.className = 'card';
-                // Ahora usamos el registro.id único en lugar del número de fila para las funciones
                 card.innerHTML = `
                     <div class="card-header">
-                        <span>Registro ID: ${registro.id}</span>
+                        <span>Registro #${numeroVisual}</span>
                         <span>🕒 ${fecha}</span>
                     </div>
                     <div class="card-body">
@@ -256,14 +312,13 @@
                     <div class="actions">
                         <button class="btn btn-copy" onclick="copiarTexto('texto-${registro.id}')">📋 Copiar</button>
                         <button class="btn btn-save" onclick="guardarEdicion('${registro.id}', 'texto-${registro.id}')">💾 Guardar</button>
-                        <button class="btn btn-delete" onclick="eliminarRegistro('${registro.id}')">🗑️ Eliminar</button>
+                        <button class="btn btn-delete" onclick="abrirModal('${registro.id}')">🗑️ Eliminar</button>
                     </div>
                 `;
                 container.appendChild(card);
             });
         }
 
-        // Función para copiar al portapapeles
         function copiarTexto(idElemento) {
             const texto = document.getElementById(idElemento).value;
             navigator.clipboard.writeText(texto).then(() => {
@@ -273,7 +328,6 @@
             });
         }
 
-        // Función para editar en Google Sheets (usando ID único)
         async function guardarEdicion(idUnico, idElemento) {
             const nuevoTexto = document.getElementById(idElemento).value;
             mostrarToast("💾 Guardando cambios...");
@@ -295,10 +349,22 @@
             }
         }
 
-        // Función para eliminar total (Destrucción manual por ID único)
-        async function eliminarRegistro(idUnico) {
-            if (!confirm("⚠️ ¿Estás seguro de que deseas destruir esta transcripción ahora mismo?")) return;
+        // --- LÓGICA DEL NUEVO MODAL DE ELIMINACIÓN ---
+        function abrirModal(idUnico) {
+            idAEliminar = idUnico;
+            document.getElementById('modal-confirmacion').classList.add('active');
+        }
+
+        function cerrarModal() {
+            idAEliminar = null;
+            document.getElementById('modal-confirmacion').classList.remove('active');
+        }
+
+        document.getElementById('btn-confirmar-eliminar').addEventListener('click', async () => {
+            if (!idAEliminar) return;
             
+            const idParaBorrar = idAEliminar;
+            cerrarModal(); // Cerramos la ventana bonita
             mostrarToast("🗑️ Destruyendo registro...");
 
             try {
@@ -308,15 +374,15 @@
                     body: JSON.stringify({
                         origen: 'web',
                         accion: 'eliminar',
-                        id: idUnico
+                        id: idParaBorrar
                     })
                 });
                 mostrarToast("✅ Registro destruido");
-                cargarDatos(); // Recargar la lista
+                cargarDatos(); 
             } catch (error) {
                 mostrarToast("❌ Error al eliminar");
             }
-        }
+        });
 
         function mostrarToast(mensaje) {
             const toast = document.getElementById('toast');
