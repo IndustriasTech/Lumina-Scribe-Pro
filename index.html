@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lumina Scribe - Panel de Transcripciones</title>
+    <!-- Favicon nativo en SVG -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙️</text></svg>">
     <style>
         /* Variables de color profesionales */
         :root {
@@ -34,9 +36,36 @@
             align-items: center;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 15px;
         }
 
-        .header h1 { font-size: 1.8rem; font-weight: 600; }
+        /* Enlace de seguridad en el título */
+        .header h1 a { 
+            font-size: 1.8rem; 
+            font-weight: 600; 
+            color: var(--text-main);
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+        .header h1 a:hover { opacity: 0.8; }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* Medidor de Balance */
+        .balance-badge {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--accent-green);
+        }
         
         .btn-refresh {
             background-color: var(--accent-blue);
@@ -155,8 +184,14 @@
 <body>
 
     <div class="header">
-        <h1>🎙️ Lumina Scribe</h1>
-        <button class="btn-refresh" onclick="cargarDatos()">🔄 Actualizar Panel</button>
+        <!-- Título con enlace de seguridad -->
+        <h1><a href="https://industriastech.github.io/Lumina-Scribe-Pro/">🎙️ Lumina Scribe</a></h1>
+        
+        <div class="header-controls">
+            <!-- Medidor de Balance en tiempo real -->
+            <div class="balance-badge" id="balance-display">💰 Saldo: Consultando...</div>
+            <button class="btn-refresh" onclick="cargarDatos()">🔄 Actualizar Panel</button>
+        </div>
     </div>
 
     <div class="container" id="tarjetas-container">
@@ -166,23 +201,31 @@
     <div id="toast">Notificación</div>
 
     <script>
-        // La URL de tu Google Apps Script
-        const API_URL = 'https://script.google.com/macros/s/AKfycbzIKXdu2d-eYkpRA-SFLNl78H2j7t4GDt41sf4T7x4f19uVjSsmz2td16FJPsCnnYC8/exec';
+        // La NUEVA URL de tu Google Apps Script
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxSXK_qPndPiHsPlImbLSizBdFBC2JrnfnuvG4G-Mfe2oMKnlx8H_4M9IsY1sBAy0S4/exec';
 
-        // Al iniciar la página, cargar los datos
         document.addEventListener('DOMContentLoaded', cargarDatos);
 
         async function cargarDatos() {
             const container = document.getElementById('tarjetas-container');
+            const balanceDisplay = document.getElementById('balance-display');
+            
             container.innerHTML = '<div id="loader">Conectando con la base de datos... ⏳</div>';
+            balanceDisplay.innerText = "💰 Saldo: Consultando...";
 
             try {
                 const respuesta = await fetch(API_URL);
-                const datos = await respuesta.json();
-                renderizarTarjetas(datos);
+                const datosServidor = await respuesta.json();
+                
+                // Actualizar el saldo exacto devuelto por Deepgram
+                balanceDisplay.innerText = `💰 Saldo: $${datosServidor.saldo} USD`;
+                
+                // Renderizar los textos
+                renderizarTarjetas(datosServidor.transcripciones);
             } catch (error) {
                 console.error(error);
                 container.innerHTML = '<div id="loader">❌ Error de conexión. Revisa tu internet o la URL.</div>';
+                balanceDisplay.innerText = "💰 Saldo: Error";
                 mostrarToast("Error al cargar los datos");
             }
         }
@@ -191,28 +234,29 @@
             const container = document.getElementById('tarjetas-container');
             container.innerHTML = '';
 
-            if (datos.length === 0) {
+            if (!datos || datos.length === 0) {
                 container.innerHTML = '<div id="loader">📭 No hay transcripciones activas. Envía un audio por Telegram.</div>';
                 return;
             }
 
-            datos.forEach(registro => {
+            datos.forEach((registro, index) => {
                 const fecha = new Date(registro.fecha).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
                 
                 const card = document.createElement('div');
                 card.className = 'card';
+                // Ahora usamos el registro.id único en lugar del número de fila para las funciones
                 card.innerHTML = `
                     <div class="card-header">
-                        <span>Registro #${registro.fila}</span>
+                        <span>Registro ID: ${registro.id}</span>
                         <span>🕒 ${fecha}</span>
                     </div>
                     <div class="card-body">
-                        <textarea id="texto-${registro.fila}">${registro.texto}</textarea>
+                        <textarea id="texto-${registro.id}">${registro.texto}</textarea>
                     </div>
                     <div class="actions">
-                        <button class="btn btn-copy" onclick="copiarTexto('texto-${registro.fila}')">📋 Copiar</button>
-                        <button class="btn btn-save" onclick="guardarEdicion(${registro.fila}, 'texto-${registro.fila}')">💾 Guardar</button>
-                        <button class="btn btn-delete" onclick="eliminarRegistro(${registro.fila})">🗑️ Eliminar</button>
+                        <button class="btn btn-copy" onclick="copiarTexto('texto-${registro.id}')">📋 Copiar</button>
+                        <button class="btn btn-save" onclick="guardarEdicion('${registro.id}', 'texto-${registro.id}')">💾 Guardar</button>
+                        <button class="btn btn-delete" onclick="eliminarRegistro('${registro.id}')">🗑️ Eliminar</button>
                     </div>
                 `;
                 container.appendChild(card);
@@ -229,20 +273,19 @@
             });
         }
 
-        // Función para editar en Google Sheets
-        async function guardarEdicion(fila, idElemento) {
+        // Función para editar en Google Sheets (usando ID único)
+        async function guardarEdicion(idUnico, idElemento) {
             const nuevoTexto = document.getElementById(idElemento).value;
             mostrarToast("💾 Guardando cambios...");
 
             try {
-                // Usamos text/plain para evitar errores de CORS con Google Script
                 await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({
                         origen: 'web',
                         accion: 'editar',
-                        fila: fila,
+                        id: idUnico,
                         nuevoTexto: nuevoTexto
                     })
                 });
@@ -252,8 +295,8 @@
             }
         }
 
-        // Función para eliminar (Destrucción manual)
-        async function eliminarRegistro(fila) {
+        // Función para eliminar total (Destrucción manual por ID único)
+        async function eliminarRegistro(idUnico) {
             if (!confirm("⚠️ ¿Estás seguro de que deseas destruir esta transcripción ahora mismo?")) return;
             
             mostrarToast("🗑️ Destruyendo registro...");
@@ -265,17 +308,16 @@
                     body: JSON.stringify({
                         origen: 'web',
                         accion: 'eliminar',
-                        fila: fila
+                        id: idUnico
                     })
                 });
                 mostrarToast("✅ Registro destruido");
-                cargarDatos(); // Recargar la lista para que desaparezca
+                cargarDatos(); // Recargar la lista
             } catch (error) {
                 mostrarToast("❌ Error al eliminar");
             }
         }
 
-        // Controlador de notificaciones visuales
         function mostrarToast(mensaje) {
             const toast = document.getElementById('toast');
             toast.innerText = mensaje;
